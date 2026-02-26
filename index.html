@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Forest Survival 3D - Pro Map</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', sans-serif; }
+        #overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; flex-direction: column; justify-content: center;
+            align-items: center; background: rgba(0,0,0,0.8); color: white; z-index: 10;
+        }
+        #ui {
+            position: absolute; bottom: 30px; left: 30px; color: #0f0;
+            text-shadow: 0 0 5px #0f0; pointer-events: none;
+        }
+        .stat-box { margin-bottom: 10px; background: rgba(0,20,0,0.5); padding: 10px; border-left: 3px solid #0f0; }
+        .bar-container { width: 200px; height: 10px; background: #111; border: 1px solid #0f0; margin-top: 5px; }
+        #gas-fill { width: 0%; height: 100%; background: #f1c40f; box-shadow: 0 0 10px #f1c40f; }
+        #battery-fill { width: 100%; height: 100%; background: #3498db; }
+        #crosshair { position: absolute; top: 50%; left: 50%; width: 10px; height: 10px; border: 1px solid white; border-radius: 50%; transform: translate(-50%, -50%); }
+    </style>
+</head>
+<body>
+
+<div id="overlay">
+    <h1>BOSQUE DE VIGILANCIA 3D</h1>
+    <p>Encuentra gasolina y llega a las torres para sobrevivir.</p>
+    <button onclick="startGame()" style="padding: 15px 30px; cursor: pointer; background: #1a1a1a; color: white; border: 1px solid #0f0;">INICIAR VIGILANCIA</button>
+</div>
+
+<div id="ui">
+    <div class="stat-box">
+        GASOLINA RECOLECTADA: <span id="gas-count">0</span>/5
+        <div class="bar-container"><div id="gas-fill"></div></div>
+    </div>
+    <div class="stat-box">
+        BATERÍA LINTERNA
+        <div class="bar-container"><div id="battery-fill"></div></div>
+    </div>
+    <div id="status-msg">EXPLORANDO EL SECTOR 4...</div>
+</div>
+
+<div id="crosshair"></div>
+
+<script type="module">
+    import * as THREE from 'https://cdn.skypack.dev/three@0.136.0';
+    import { PointerLockControls } from 'https://cdn.skypack.dev/three@0.136.0/examples/jsm/controls/PointerLockControls.js';
+
+    let scene, camera, renderer, controls, flashlight;
+    let items = [];
+    let towers = [];
+    let gasCollected = 0;
+    let battery = 100;
+
+    function init() {
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x010305);
+        scene.fog = new THREE.FogExp2(0x010305, 0.04);
+
+        camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+
+        controls = new PointerLockControls(camera, document.body);
+
+        // --- ILUMINACIÓN ---
+        const ambient = new THREE.AmbientLight(0x404040, 0.1);
+        scene.add(ambient);
+
+        flashlight = new THREE.SpotLight(0xfff5e0, 2.5, 50, Math.PI/7, 0.4, 1);
+        flashlight.castShadow = true;
+        scene.add(flashlight);
+        scene.add(flashlight.target);
+
+        createMap();
+        animate();
+    }
+
+    function createMap() {
+        // Suelo con ruido visual
+        const groundGeo = new THREE.PlaneGeometry(300, 300, 50, 50);
+        const groundMat = new THREE.MeshStandardMaterial({ color: 0x121812, roughness: 1 });
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        // Generar Bosque y Torres
+        for(let i = 0; i < 400; i++) {
+            const x = Math.random() * 280 - 140;
+            const z = Math.random() * 280 - 140;
+            
+            // Evitar spawn en el centro
+            if (Math.sqrt(x*x + z*z) < 10) continue;
+
+            if (i < 3) { // 3 Torres de vigilancia
+                createTower(x, z);
+            } else if (i < 15) { // Bidones de gasolina
+                createGas(x, z);
+            } else { // Árboles
+                createTree(x, z);
+            }
+        }
+    }
+
+    function createTree(x, z) {
+        const group = new THREE.Group();
+        const trunk = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.2, 0.4, 6),
+            new THREE.MeshStandardMaterial({ color: 0x2d1b0d })
+        );
+        const leaves = new THREE.Mesh(
+            new THREE.ConeGeometry(2, 7, 6),
+            new THREE.MeshStandardMaterial({ color: 0x051a05 })
+        );
+        leaves.position.y = 5;
+        group.add(trunk, leaves);
+        group.position.set(x, 3, z);
+        scene.add(group);
+    }
+
+    function createTower(x, z) {
+        const tower = new THREE.Group();
+        // Patas
+        const legs = new THREE.Mesh(new THREE.BoxGeometry(0.5, 15, 0.5), new THREE.MeshStandardMaterial({color:0x222}));
+        tower.add(legs);
+        // Cabina
+        const cabin = new THREE.Mesh(new THREE.BoxGeometry(5, 4, 5), new THREE.MeshStandardMaterial({color:0x333}));
+        cabin.position.y = 8;
+        tower.add(cabin);
+        
+        tower.position.set(x, 0, z);
+        scene.add(tower);
+        towers.push(tower);
+    }
+
+    function createGas(x, z) {
+        const gas = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.3, 0.3, 0.8),
+            new THREE.MeshStandardMaterial({ color: 0xff0000, emissive: 0x330000 })
+        );
+        gas.position.set(x, 0.4, z);
+        scene.add(gas);
+        items.push(gas);
+    }
+
+    // --- MOVIMIENTO ---
+    let keys = {};
+    document.addEventListener('keydown', (e) => keys[e.code] = true);
+    document.addEventListener('keyup', (e) => keys[e.code] = false);
+
+    function updateGame() {
+        if (!controls.isLocked) return;
+
+        const speed = 0.15;
+        if (keys['KeyW']) controls.moveForward(speed);
+        if (keys['KeyS']) controls.moveForward(-speed);
+        if (keys['KeyA']) controls.moveRight(-speed);
+        if (keys['KeyD']) controls.moveRight(speed);
+
+        // Actualizar Linterna
+        flashlight.position.copy(camera.position);
+        const dir = new THREE.Vector3();
+        camera.getWorldDirection(dir);
+        flashlight.target.position.addVectors(camera.position, dir);
+        
+        if (battery > 0) {
+            battery -= 0.05;
+            document.getElementById('battery-fill').style.width = battery + '%';
+        } else {
+            flashlight.intensity = 0;
+        }
+
+        // Colisión con Gasolina
+        items.forEach((item, index) => {
+            if (camera.position.distanceTo(item.position) < 2) {
+                scene.remove(item);
+                items.splice(index, 1);
+                gasCollected++;
+                document.getElementById('gas-count').innerText = gasCollected;
+                document.getElementById('gas-fill').style.width = (gasCollected * 20) + '%';
+                document.getElementById('status-msg').innerText = "¡Gasolina encontrada!";
+            }
+        });
+
+        // Check Torres (Dormir/Refugio)
+        towers.forEach(t => {
+            if (camera.position.distanceTo(t.position) < 5) {
+                document.getElementById('status-msg').innerText = "ESTÁS EN UNA ZONA SEGURA";
+                battery = Math.min(battery + 0.2, 100); // Se recarga un poco la linterna
+            }
+        });
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        updateGame();
+        renderer.render(scene, camera);
+    }
+
+    window.startGame = () => {
+        init();
+        document.getElementById('overlay').style.display = 'none';
+        controls.lock();
+    };
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+</script>
+</body>
+</html>
