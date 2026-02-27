@@ -1,219 +1,453 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <title>Forest Survival 3D - Pro Map</title>
-    <style>
-        body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', sans-serif; }
-        #overlay {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            display: flex; flex-direction: column; justify-content: center;
-            align-items: center; background: rgba(0,0,0,0.8); color: white; z-index: 10;
-        }
-        #ui {
-            position: absolute; bottom: 30px; left: 30px; color: #0f0;
-            text-shadow: 0 0 5px #0f0; pointer-events: none;
-        }
-        .stat-box { margin-bottom: 10px; background: rgba(0,20,0,0.5); padding: 10px; border-left: 3px solid #0f0; }
-        .bar-container { width: 200px; height: 10px; background: #111; border: 1px solid #0f0; margin-top: 5px; }
-        #gas-fill { width: 0%; height: 100%; background: #f1c40f; box-shadow: 0 0 10px #f1c40f; }
-        #battery-fill { width: 100%; height: 100%; background: #3498db; }
-        #crosshair { position: absolute; top: 50%; left: 50%; width: 10px; height: 10px; border: 1px solid white; border-radius: 50%; transform: translate(-50%, -50%); }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bosque de Vigilancia: Turno de Noche</title>
+  <style>
+    :root {
+      --hud: #b5ffbe;
+      --danger: #ff5c5c;
+      --safe: #6fd3ff;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: #020403;
+      color: var(--hud);
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    #overlay,
+    #message {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 20;
+      background: rgba(0, 0, 0, 0.78);
+      backdrop-filter: blur(2px);
+      text-align: center;
+      padding: 16px;
+    }
+
+    #message { display: none; }
+
+    .panel {
+      max-width: 680px;
+      border: 1px solid #29442b;
+      background: rgba(7, 17, 10, 0.88);
+      box-shadow: 0 0 30px rgba(0, 0, 0, 0.6);
+      padding: 20px;
+      border-radius: 10px;
+    }
+
+    h1 { margin-top: 0; letter-spacing: 1px; }
+    p { line-height: 1.5; }
+
+    button {
+      margin-top: 8px;
+      border: 1px solid #6abf6f;
+      background: #132314;
+      color: #d8ffdc;
+      padding: 12px 18px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+    }
+
+    #hud {
+      position: absolute;
+      left: 18px;
+      bottom: 18px;
+      z-index: 15;
+      min-width: 260px;
+      pointer-events: none;
+      text-shadow: 0 0 8px rgba(149, 255, 163, 0.25);
+    }
+
+    .line {
+      margin-top: 8px;
+      font-size: 14px;
+      letter-spacing: 0.4px;
+    }
+
+    .bar {
+      width: 260px;
+      height: 10px;
+      margin-top: 6px;
+      border: 1px solid #315335;
+      background: #050b06;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .fill { height: 100%; width: 100%; transition: width 180ms linear; }
+    #batteryFill { background: linear-gradient(90deg, #5fa5ff, #96d1ff); }
+    #fearFill { background: linear-gradient(90deg, #ffc0c0, #ff3a3a); }
+
+    #crosshair {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 12px;
+      height: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.95);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 9;
+    }
+
+    #hint {
+      position: absolute;
+      top: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 15;
+      color: #f4fff5;
+      background: rgba(0, 0, 0, 0.45);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 13px;
+      pointer-events: none;
+      min-width: 330px;
+      text-align: center;
+    }
+  </style>
 </head>
 <body>
-
-<div id="overlay">
-    <h1>BOSQUE DE VIGILANCIA 3D</h1>
-    <p>Encuentra gasolina y llega a las torres para sobrevivir.</p>
-    <button onclick="startGame()" style="padding: 15px 30px; cursor: pointer; background: #1a1a1a; color: white; border: 1px solid #0f0;">INICIAR VIGILANCIA</button>
-</div>
-
-<div id="ui">
-    <div class="stat-box">
-        GASOLINA RECOLECTADA: <span id="gas-count">0</span>/5
-        <div class="bar-container"><div id="gas-fill"></div></div>
+  <div id="overlay">
+    <div class="panel">
+      <h1>Bosque de Vigilancia: Turno de Noche</h1>
+      <p>
+        Eres un vigilante forestal atrapado en la noche. Activa <b>3 torres de vigilancia</b> para pedir ayuda.
+        Una criatura ronda entre los árboles: mantente en zonas iluminadas o el miedo te consumirá.
+      </p>
+      <p><b>Controles:</b> W A S D para moverte, mouse para mirar, clic para bloquear cursor.</p>
+      <button id="startBtn">INICIAR TURNO</button>
     </div>
-    <div class="stat-box">
-        BATERÍA LINTERNA
-        <div class="bar-container"><div id="battery-fill"></div></div>
+  </div>
+
+  <div id="message">
+    <div class="panel">
+      <h1 id="messageTitle"></h1>
+      <p id="messageBody"></p>
+      <button onclick="location.reload()">JUGAR OTRA VEZ</button>
     </div>
-    <div id="status-msg">EXPLORANDO EL SECTOR 4...</div>
-</div>
+  </div>
 
-<div id="crosshair"></div>
+  <div id="hint">Busca y activa la primera torre.</div>
+  <div id="hud">
+    <div class="line">Torres activadas: <span id="towerCount">0</span>/3</div>
+    <div class="line">Batería de linterna</div>
+    <div class="bar"><div class="fill" id="batteryFill"></div></div>
+    <div class="line">Nivel de miedo</div>
+    <div class="bar"><div class="fill" id="fearFill"></div></div>
+    <div class="line" id="status">Estado: Patrullando entre la niebla...</div>
+  </div>
+  <div id="crosshair"></div>
 
-<script type="module">
+  <script type="module">
     import * as THREE from 'https://cdn.skypack.dev/three@0.136.0';
     import { PointerLockControls } from 'https://cdn.skypack.dev/three@0.136.0/examples/jsm/controls/PointerLockControls.js';
 
-    let scene, camera, renderer, controls, flashlight;
-    let items = [];
-    let towers = [];
-    let gasCollected = 0;
-    let battery = 100;
+    let scene, camera, renderer, controls;
+    let flashlight, monster, monsterLight;
+    const towers = [];
+    const keys = {};
+    const worldSize = 320;
+
+    const state = {
+      started: false,
+      battery: 100,
+      fear: 20,
+      towersOn: 0,
+      gameOver: false,
+      nearSafeLight: false
+    };
+
+    const ui = {
+      towerCount: document.getElementById('towerCount'),
+      batteryFill: document.getElementById('batteryFill'),
+      fearFill: document.getElementById('fearFill'),
+      hint: document.getElementById('hint'),
+      status: document.getElementById('status'),
+      message: document.getElementById('message'),
+      messageTitle: document.getElementById('messageTitle'),
+      messageBody: document.getElementById('messageBody')
+    };
 
     function init() {
-        scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x010305);
-        scene.fog = new THREE.FogExp2(0x010305, 0.04);
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x010302);
+      scene.fog = new THREE.FogExp2(0x010302, 0.045);
 
-        camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        
-        renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-        document.body.appendChild(renderer.domElement);
+      camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+      camera.position.set(0, 2.2, 0);
 
-        controls = new PointerLockControls(camera, document.body);
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      document.body.appendChild(renderer.domElement);
 
-        // --- ILUMINACIÓN ---
-        const ambient = new THREE.AmbientLight(0x404040, 0.1);
-        scene.add(ambient);
+      controls = new PointerLockControls(camera, document.body);
 
-        flashlight = new THREE.SpotLight(0xfff5e0, 2.5, 50, Math.PI/7, 0.4, 1);
-        flashlight.castShadow = true;
-        scene.add(flashlight);
-        scene.add(flashlight.target);
+      createLights();
+      createMap();
+      createMonster();
+      bindEvents();
+      animate();
+    }
 
-        createMap();
-        animate();
+    function createLights() {
+      const moon = new THREE.DirectionalLight(0x5a6d77, 0.2);
+      moon.position.set(20, 30, -20);
+      scene.add(moon);
+
+      const ambient = new THREE.AmbientLight(0x334030, 0.08);
+      scene.add(ambient);
+
+      flashlight = new THREE.SpotLight(0xddefff, 2.4, 46, Math.PI / 6, 0.55, 1.5);
+      flashlight.castShadow = true;
+      scene.add(flashlight);
+      scene.add(flashlight.target);
     }
 
     function createMap() {
-        // Suelo con ruido visual
-        const groundGeo = new THREE.PlaneGeometry(300, 300, 50, 50);
-        const groundMat = new THREE.MeshStandardMaterial({ color: 0x121812, roughness: 1 });
-        const ground = new THREE.Mesh(groundGeo, groundMat);
-        ground.rotation.x = -Math.PI / 2;
-        ground.receiveShadow = true;
-        scene.add(ground);
+      const ground = new THREE.Mesh(
+        new THREE.PlaneGeometry(worldSize, worldSize),
+        new THREE.MeshStandardMaterial({ color: 0x0a120b, roughness: 1 })
+      );
+      ground.rotation.x = -Math.PI / 2;
+      ground.receiveShadow = true;
+      scene.add(ground);
 
-        // Generar Bosque y Torres
-        for(let i = 0; i < 400; i++) {
-            const x = Math.random() * 280 - 140;
-            const z = Math.random() * 280 - 140;
-            
-            // Evitar spawn en el centro
-            if (Math.sqrt(x*x + z*z) < 10) continue;
+      for (let i = 0; i < 430; i++) {
+        const x = Math.random() * (worldSize - 30) - (worldSize - 30) / 2;
+        const z = Math.random() * (worldSize - 30) - (worldSize - 30) / 2;
+        if (Math.hypot(x, z) < 12) continue;
 
-            if (i < 3) { // 3 Torres de vigilancia
-                createTower(x, z);
-            } else if (i < 15) { // Bidones de gasolina
-                createGas(x, z);
-            } else { // Árboles
-                createTree(x, z);
-            }
-        }
+        if (i < 3) createTower(x, z);
+        else createTree(x, z);
+      }
     }
 
     function createTree(x, z) {
-        const group = new THREE.Group();
-        const trunk = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.2, 0.4, 6),
-            new THREE.MeshStandardMaterial({ color: 0x2d1b0d })
-        );
-        const leaves = new THREE.Mesh(
-            new THREE.ConeGeometry(2, 7, 6),
-            new THREE.MeshStandardMaterial({ color: 0x051a05 })
-        );
-        leaves.position.y = 5;
-        group.add(trunk, leaves);
-        group.position.set(x, 3, z);
-        scene.add(group);
+      const tree = new THREE.Group();
+
+      const trunk = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.24, 0.35, 6, 7),
+        new THREE.MeshStandardMaterial({ color: 0x2a1e16, roughness: 0.95 })
+      );
+      trunk.position.y = 3;
+
+      const crown = new THREE.Mesh(
+        new THREE.ConeGeometry(2, 6.5, 7),
+        new THREE.MeshStandardMaterial({ color: 0x09190a, roughness: 1 })
+      );
+      crown.position.y = 7;
+
+      tree.add(trunk, crown);
+      tree.position.set(x, 0, z);
+      scene.add(tree);
     }
 
     function createTower(x, z) {
-        const tower = new THREE.Group();
-        // Patas
-        const legs = new THREE.Mesh(new THREE.BoxGeometry(0.5, 15, 0.5), new THREE.MeshStandardMaterial({color:0x222}));
-        tower.add(legs);
-        // Cabina
-        const cabin = new THREE.Mesh(new THREE.BoxGeometry(5, 4, 5), new THREE.MeshStandardMaterial({color:0x333}));
-        cabin.position.y = 8;
-        tower.add(cabin);
-        
-        tower.position.set(x, 0, z);
-        scene.add(tower);
-        towers.push(tower);
+      const tower = new THREE.Group();
+      const legMat = new THREE.MeshStandardMaterial({ color: 0x3e3e3e, metalness: 0.4, roughness: 0.7 });
+      const platformMat = new THREE.MeshStandardMaterial({ color: 0x444a51, roughness: 0.8 });
+
+      const offsets = [
+        [1.8, 1.8], [-1.8, 1.8], [1.8, -1.8], [-1.8, -1.8]
+      ];
+
+      offsets.forEach(([ox, oz]) => {
+        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.5, 12, 0.5), legMat);
+        leg.position.set(ox, 6, oz);
+        leg.castShadow = true;
+        tower.add(leg);
+      });
+
+      const platform = new THREE.Mesh(new THREE.BoxGeometry(5, 0.6, 5), platformMat);
+      platform.position.y = 11.9;
+      tower.add(platform);
+
+      const cabin = new THREE.Mesh(new THREE.BoxGeometry(3.3, 2.8, 3.3), new THREE.MeshStandardMaterial({ color: 0x25282f }));
+      cabin.position.y = 13.6;
+      tower.add(cabin);
+
+      const lamp = new THREE.PointLight(0x2b3f58, 0.6, 22);
+      lamp.position.y = 14.8;
+      tower.add(lamp);
+
+      tower.userData = { activated: false, lamp };
+      tower.position.set(x, 0, z);
+      scene.add(tower);
+      towers.push(tower);
     }
 
-    function createGas(x, z) {
-        const gas = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.3, 0.3, 0.8),
-            new THREE.MeshStandardMaterial({ color: 0xff0000, emissive: 0x330000 })
-        );
-        gas.position.set(x, 0.4, z);
-        scene.add(gas);
-        items.push(gas);
+    function createMonster() {
+      monster = new THREE.Mesh(
+        new THREE.SphereGeometry(1.2, 12, 12),
+        new THREE.MeshStandardMaterial({ color: 0x190505, emissive: 0x2f0000, roughness: 0.9 })
+      );
+      monster.position.set(28, 1.2, 28);
+      scene.add(monster);
+
+      monsterLight = new THREE.PointLight(0x7b1010, 0.7, 20);
+      scene.add(monsterLight);
     }
 
-    // --- MOVIMIENTO ---
-    let keys = {};
-    document.addEventListener('keydown', (e) => keys[e.code] = true);
-    document.addEventListener('keyup', (e) => keys[e.code] = false);
+    function bindEvents() {
+      document.addEventListener('keydown', (e) => { keys[e.code] = true; });
+      document.addEventListener('keyup', (e) => { keys[e.code] = false; });
 
-    function updateGame() {
-        if (!controls.isLocked) return;
-
-        const speed = 0.15;
-        if (keys['KeyW']) controls.moveForward(speed);
-        if (keys['KeyS']) controls.moveForward(-speed);
-        if (keys['KeyA']) controls.moveRight(-speed);
-        if (keys['KeyD']) controls.moveRight(speed);
-
-        // Actualizar Linterna
-        flashlight.position.copy(camera.position);
-        const dir = new THREE.Vector3();
-        camera.getWorldDirection(dir);
-        flashlight.target.position.addVectors(camera.position, dir);
-        
-        if (battery > 0) {
-            battery -= 0.05;
-            document.getElementById('battery-fill').style.width = battery + '%';
-        } else {
-            flashlight.intensity = 0;
-        }
-
-        // Colisión con Gasolina
-        items.forEach((item, index) => {
-            if (camera.position.distanceTo(item.position) < 2) {
-                scene.remove(item);
-                items.splice(index, 1);
-                gasCollected++;
-                document.getElementById('gas-count').innerText = gasCollected;
-                document.getElementById('gas-fill').style.width = (gasCollected * 20) + '%';
-                document.getElementById('status-msg').innerText = "¡Gasolina encontrada!";
-            }
-        });
-
-        // Check Torres (Dormir/Refugio)
-        towers.forEach(t => {
-            if (camera.position.distanceTo(t.position) < 5) {
-                document.getElementById('status-msg').innerText = "ESTÁS EN UNA ZONA SEGURA";
-                battery = Math.min(battery + 0.2, 100); // Se recarga un poco la linterna
-            }
-        });
-    }
-
-    function animate() {
-        requestAnimationFrame(animate);
-        updateGame();
-        renderer.render(scene, camera);
-    }
-
-    window.startGame = () => {
-        init();
+      document.getElementById('startBtn').addEventListener('click', () => {
+        state.started = true;
         document.getElementById('overlay').style.display = 'none';
         controls.lock();
-    };
+      });
 
-    window.addEventListener('resize', () => {
+      window.addEventListener('resize', () => {
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
-    });
-</script>
+      });
+    }
+
+    function updateMovement() {
+      if (!controls.isLocked || state.gameOver) return;
+
+      const speed = keys['ShiftLeft'] ? 0.25 : 0.17;
+      if (keys['KeyW']) controls.moveForward(speed);
+      if (keys['KeyS']) controls.moveForward(-speed);
+      if (keys['KeyA']) controls.moveRight(-speed);
+      if (keys['KeyD']) controls.moveRight(speed);
+
+      const p = controls.getObject().position;
+      p.x = THREE.MathUtils.clamp(p.x, -worldSize / 2 + 3, worldSize / 2 - 3);
+      p.z = THREE.MathUtils.clamp(p.z, -worldSize / 2 + 3, worldSize / 2 - 3);
+      p.y = 2.2;
+    }
+
+    function updateFlashlight() {
+      const playerPos = controls.getObject().position;
+      flashlight.position.copy(playerPos);
+
+      const dir = new THREE.Vector3();
+      camera.getWorldDirection(dir);
+      flashlight.target.position.copy(playerPos).add(dir.multiplyScalar(10));
+
+      if (state.battery > 0) {
+        state.battery = Math.max(0, state.battery - 0.023);
+        flashlight.intensity = 2.4;
+      } else {
+        flashlight.intensity = 0.3;
+      }
+    }
+
+    function updateTowers() {
+      const playerPos = controls.getObject().position;
+      state.nearSafeLight = false;
+
+      let closestHint = 999;
+      towers.forEach((tower, i) => {
+        const d = playerPos.distanceTo(tower.position);
+        if (d < closestHint && !tower.userData.activated) closestHint = d;
+
+        if (d < 10) state.nearSafeLight = true;
+
+        if (!tower.userData.activated && d < 7) {
+          tower.userData.activated = true;
+          tower.userData.lamp.color.setHex(0x9de6ff);
+          tower.userData.lamp.intensity = 1.6;
+          state.towersOn += 1;
+          state.battery = Math.min(100, state.battery + 32);
+          ui.status.textContent = `Estado: Torre ${i + 1} activada. Señal enviada.`;
+        }
+      });
+
+      if (state.towersOn === 3) {
+        endGame(true, 'Activaste todas las torres y un helicóptero se acerca. Sobreviviste a la guardia nocturna.');
+        return;
+      }
+
+      if (closestHint < 999) {
+        ui.hint.textContent = `Torre más cercana a ${Math.round(closestHint)} m. Mantén la calma.`;
+      }
+    }
+
+    function updateMonster() {
+      const playerPos = controls.getObject().position;
+      const offset = new THREE.Vector3(
+        Math.sin(performance.now() * 0.0014) * 8,
+        0,
+        Math.cos(performance.now() * 0.0012) * 8
+      );
+
+      const target = playerPos.clone().add(offset);
+      monster.position.lerp(target, 0.0065);
+      monsterLight.position.copy(monster.position).add(new THREE.Vector3(0, 2.1, 0));
+
+      const dist = playerPos.distanceTo(monster.position);
+      if (dist < 18) {
+        state.fear = Math.min(100, state.fear + (18 - dist) * 0.012);
+        ui.status.textContent = 'Estado: Algo te observa entre los árboles...';
+      }
+
+      if (dist < 2.4) {
+        endGame(false, 'La criatura te alcanzó antes de que encendieras toda la red de vigilancia.');
+      }
+    }
+
+    function updateFear() {
+      if (state.nearSafeLight) {
+        state.fear = Math.max(0, state.fear - 0.2);
+      } else {
+        state.fear = Math.min(100, state.fear + 0.045);
+      }
+
+      if (state.fear >= 100) {
+        endGame(false, 'El pánico te paralizó en la oscuridad del bosque.');
+      }
+    }
+
+    function updateHUD() {
+      ui.towerCount.textContent = state.towersOn;
+      ui.batteryFill.style.width = `${state.battery}%`;
+      ui.fearFill.style.width = `${state.fear}%`;
+    }
+
+    function endGame(victory, text) {
+      if (state.gameOver) return;
+      state.gameOver = true;
+      controls.unlock();
+      ui.message.style.display = 'flex';
+      ui.messageTitle.textContent = victory ? '¡Rescate en camino!' : 'FIN DEL TURNO';
+      ui.messageBody.textContent = text;
+      ui.hint.textContent = victory ? 'La madrugada te salvó.' : 'Nadie escucha en el bosque.';
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      if (state.started && !state.gameOver) {
+        updateMovement();
+        updateFlashlight();
+        updateTowers();
+        updateMonster();
+        updateFear();
+        updateHUD();
+      }
+      renderer.render(scene, camera);
+    }
+
+    init();
+  </script>
 </body>
 </html>
